@@ -5,13 +5,16 @@ import {
   Shield,
   Mountain,
   TrendingUp,
+  Sparkles,
 } from "lucide-react";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import InsightCard from "../components/InsightCard";
 import PhaseIconBadge from "../components/PhaseIconBadge";
 import { useAppStore } from "../store/useAppStore";
+import { selectRecentJournalEntries } from "../store/slices/growthSlice";
 import { computeGrowthInsights } from "../lib/psychology";
+import { generateGrowthReflection } from "../lib/ai";
 
 const METRIC_META = {
   consistency: { label: "Consistency", icon: Droplet, accent: "teal" },
@@ -37,7 +40,10 @@ const LEVEL_DESCRIPTIONS = {
 export default function GrowthPage() {
   const journalEntries = useAppStore((s) => s.journalEntries);
   const addJournalEntry = useAppStore((s) => s.addJournalEntry);
-  const recentEntries = useAppStore(selectRecentJournalEntries);
+  const recentEntries = useMemo(
+    () => selectRecentJournalEntries({ journalEntries }),
+    [journalEntries],
+  );
 
   const [text, setText] = useState("");
   const [tagsInput, setTagsInput] = useState("");

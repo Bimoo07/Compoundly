@@ -8,6 +8,13 @@ const MISSED_DAY_THRESHOLD = 2;
 
 const toDateOnly = (date) => new Date(date.toDateString());
 
+const toDateOnlyString = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 /**
  * Detects whether the user's current 7-Day Experiment has drifted into a
  * "burl" state — MISSED_DAY_THRESHOLD or more consecutive days without a
@@ -27,7 +34,11 @@ const toDateOnly = (date) => new Date(date.toDateString());
  *   lastCheckInDate: string | null,
  * }}
  */
-export function detectBurlTrigger(checkIns, experimentStartDate, today = new Date()) {
+export function detectBurlTrigger(
+  checkIns,
+  experimentStartDate,
+  today = new Date(),
+) {
   if (!experimentStartDate) {
     return { triggered: false, missedStreak: 0, lastCheckInDate: null };
   }
@@ -49,7 +60,7 @@ export function detectBurlTrigger(checkIns, experimentStartDate, today = new Dat
     cursor >= start.getTime();
     cursor -= DAY_MS
   ) {
-    const cursorDate = new Date(cursor).toISOString().slice(0, 10);
+    const cursorDate = toDateOnlyString(new Date(cursor));
     if (checkIns[cursorDate]) break;
     missedStreak += 1;
   }

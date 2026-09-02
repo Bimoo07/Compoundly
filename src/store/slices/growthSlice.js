@@ -25,10 +25,18 @@ export const createGrowthSlice = (set) => ({
  * Selector: last N days of journal entries. Use this (never the raw array)
  * when preparing context for the Gemini API, per the data-minimization
  * principle — only the last 7 days should ever leave the device.
+ *
+ * IMPORTANT: this is a plain utility function, NOT meant to be passed
+ * directly into `useAppStore(selectRecentJournalEntries)` as a hook
+ * selector — `.filter()` returns a new array reference every call, which
+ * causes an infinite re-render loop with Zustand's useSyncExternalStore
+ * (confirmed by GrowthPage.test.jsx). Instead, select the raw
+ * `journalEntries` array normally and derive this via `useMemo` in the
+ * component — see GrowthPage.jsx.
  */
 export const selectRecentJournalEntries = (state, days = 7) => {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   return state.journalEntries.filter(
-    (entry) => new Date(entry.createdAt).getTime() >= cutoff
+    (entry) => new Date(entry.createdAt).getTime() >= cutoff,
   );
 };
