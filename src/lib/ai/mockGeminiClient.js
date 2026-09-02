@@ -17,3 +17,15 @@ export async function suggestHabitsFromNarrative(_narrative) {
   // real Gemini client.
   return { habits: habits.map((h) => ({ ...h, source: "ai" })) };
 }
+
+/**
+ * Mock version of geminiClient.js's `generateGrowthReflection`.
+ * Same signature, same return shape.
+ *
+ * @param {string} _recentEntriesText - unused in the mock, kept for signature parity.
+ * @returns {Promise<{ reflection: string }>}
+ */
+export async function generateGrowthReflection(_recentEntriesText) {
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  return mockData.growthReflection;
+}

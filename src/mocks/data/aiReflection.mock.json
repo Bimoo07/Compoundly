@@ -6,11 +6,23 @@
       { "id": "10-min-reflection", "label": "10-Min Reflection" }
     ]
   },
+  "growthReflection": {
+    "reflection": "You're showing up for yourself consistently this week — that steadiness is the pattern that compounds."
+  },
   "growthInsights": {
     "consistency": { "label": "Consistency", "description": "Flowing steady" },
-    "emotionalRegulation": { "label": "Emotional Regulation", "description": "Finding balance" },
-    "selfControl": { "label": "Self-Control", "description": "Strengthening core" },
-    "facingChallenges": { "label": "Facing Challenges", "description": "Confronting problems" }
+    "emotionalRegulation": {
+      "label": "Emotional Regulation",
+      "description": "Finding balance"
+    },
+    "selfControl": {
+      "label": "Self-Control",
+      "description": "Strengthening core"
+    },
+    "facingChallenges": {
+      "label": "Facing Challenges",
+      "description": "Confronting problems"
+    }
   },
   "recoveryMessage": {
     "headline": "The Burl Effect",

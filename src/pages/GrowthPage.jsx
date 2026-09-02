@@ -1,33 +1,56 @@
-import { useState, useMemo } from 'react';
-import { Droplet, PersonStanding, Shield, Mountain, TrendingUp } from 'lucide-react';
-import Card from '../components/Card';
-import Button from '../components/Button';
-import InsightCard from '../components/InsightCard';
-import PhaseIconBadge from '../components/PhaseIconBadge';
-import { useAppStore } from '../store/useAppStore';
-import { computeGrowthInsights } from '../lib/psychology';
+import { useState, useMemo } from "react";
+import {
+  Droplet,
+  PersonStanding,
+  Shield,
+  Mountain,
+  TrendingUp,
+} from "lucide-react";
+import Card from "../components/Card";
+import Button from "../components/Button";
+import InsightCard from "../components/InsightCard";
+import PhaseIconBadge from "../components/PhaseIconBadge";
+import { useAppStore } from "../store/useAppStore";
+import { computeGrowthInsights } from "../lib/psychology";
 
 const METRIC_META = {
-  consistency: { label: 'Consistency', icon: Droplet, accent: 'teal' },
-  emotionalRegulation: { label: 'Emotional Regulation', icon: PersonStanding, accent: 'green' },
-  selfControl: { label: 'Self-Control', icon: Shield, accent: 'purple' },
-  facingChallenges: { label: 'Facing Challenges', icon: Mountain, accent: 'muted' },
+  consistency: { label: "Consistency", icon: Droplet, accent: "teal" },
+  emotionalRegulation: {
+    label: "Emotional Regulation",
+    icon: PersonStanding,
+    accent: "green",
+  },
+  selfControl: { label: "Self-Control", icon: Shield, accent: "purple" },
+  facingChallenges: {
+    label: "Facing Challenges",
+    icon: Mountain,
+    accent: "muted",
+  },
 };
 
 const LEVEL_DESCRIPTIONS = {
-  building: 'Just getting started',
-  steady: 'Finding balance',
-  flowing: 'Flowing steady',
+  building: "Just getting started",
+  steady: "Finding balance",
+  flowing: "Flowing steady",
 };
 
 export default function GrowthPage() {
   const journalEntries = useAppStore((s) => s.journalEntries);
   const addJournalEntry = useAppStore((s) => s.addJournalEntry);
+  const recentEntries = useAppStore(selectRecentJournalEntries);
 
-  const [text, setText] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
+  const [text, setText] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
 
-  const insights = useMemo(() => computeGrowthInsights(journalEntries), [journalEntries]);
+  const [reflection, setReflection] = useState(null);
+  const [isLoadingReflection, setIsLoadingReflection] = useState(false);
+  const [reflectionError, setReflectionError] = useState(null);
+  const [reflectionCrisisNotice, setReflectionCrisisNotice] = useState(null);
+
+  const insights = useMemo(
+    () => computeGrowthInsights(journalEntries),
+    [journalEntries],
+  );
 
   function handleSave() {
     const tags = tagsInput
@@ -35,24 +58,65 @@ export default function GrowthPage() {
       .map((t) => t.trim())
       .filter(Boolean);
     addJournalEntry({ text, tags });
-    setText('');
-    setTagsInput('');
+    setText("");
+    setTagsInput("");
+  }
+
+  async function handleGetReflection() {
+    const entriesText = recentEntries.map((e) => e.text).join("\n");
+    if (!entriesText.trim()) {
+      setReflectionError(
+        "Log a few entries first so there's something to reflect on.",
+      );
+      return;
+    }
+
+    setIsLoadingReflection(true);
+    setReflectionError(null);
+    setReflectionCrisisNotice(null);
+    try {
+      // Only the last 7 days ever leave the device — see
+      // selectRecentJournalEntries in growthSlice.js.
+      const result = await generateGrowthReflection(entriesText);
+      if (result.crisisDetected) {
+        setReflectionCrisisNotice(result);
+        return;
+      }
+      setReflection(result.reflection);
+    } catch (err) {
+      console.error("generateGrowthReflection failed:", err);
+      setReflectionError(
+        "Couldn't generate a reflection right now — try again in a moment.",
+      );
+    } finally {
+      setIsLoadingReflection(false);
+    }
   }
 
   return (
     <div>
       <div className="flex items-center gap-md">
-        <PhaseIconBadge icon={TrendingUp} active layoutId="phase-icon-growth" size={56} />
-        <h1 className="text-3xl font-bold text-text-primary">Phase 3: Growth</h1>
+        <PhaseIconBadge
+          icon={TrendingUp}
+          active
+          layoutId="phase-icon-growth"
+          size={56}
+        />
+        <h1 className="text-3xl font-bold text-text-primary">
+          Phase 3: Growth
+        </h1>
       </div>
       <p className="mt-2 max-w-2xl text-text-secondary">
-        Reflect on your progress. Every small victory is a step towards rewiring your habits.
+        Reflect on your progress. Every small victory is a step towards rewiring
+        your habits.
       </p>
 
       <div className="mt-3xl grid grid-cols-1 gap-lg lg:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-lg">
           <Card className="flex flex-col gap-md">
-            <h3 className="text-heading text-text-primary">Journal of Evidence</h3>
+            <h3 className="text-heading text-text-primary">
+              Journal of Evidence
+            </h3>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -67,17 +131,25 @@ export default function GrowthPage() {
               className="w-full rounded-sm border border-subtle bg-navy-950/60 px-md py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-accent-primary"
             />
             <div className="flex justify-end">
-              <Button variant="primary" onClick={handleSave} disabled={!text.trim()}>
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                disabled={!text.trim()}
+              >
                 Save Entry
               </Button>
             </div>
           </Card>
 
           <div>
-            <h3 className="mb-md text-heading text-text-primary">Recent Evidence</h3>
+            <h3 className="mb-md text-heading text-text-primary">
+              Recent Evidence
+            </h3>
             <div className="flex flex-col gap-sm">
               {journalEntries.length === 0 && (
-                <p className="text-sm text-text-secondary">No entries yet — your first one starts the pattern.</p>
+                <p className="text-sm text-text-secondary">
+                  No entries yet — your first one starts the pattern.
+                </p>
               )}
               {journalEntries.slice(0, 5).map((entry) => (
                 <Card key={entry.id} padding="md">
@@ -88,7 +160,9 @@ export default function GrowthPage() {
                   {entry.tags.length > 0 && (
                     <div className="mt-2 flex gap-2">
                       {entry.tags.map((tag) => (
-                        <span key={tag} className="text-xs text-accent-primary">{tag}</span>
+                        <span key={tag} className="text-xs text-accent-primary">
+                          {tag}
+                        </span>
                       ))}
                     </div>
                   )}
@@ -116,6 +190,48 @@ export default function GrowthPage() {
                 score={insights[key].score}
               />
             ))}
+          </div>
+
+          {/*
+            This reflection is generative narrative ONLY — it never feeds
+            back into the scores above. The scores are computed entirely by
+            lib/psychology/growth.js before this ever runs. See the
+            architectural note on generateGrowthReflection in geminiClient.js.
+          */}
+          <div className="border-t border-subtle pt-md">
+            <Button
+              variant="ghost"
+              icon={Sparkles}
+              className="!px-0"
+              disabled={isLoadingReflection}
+              onClick={handleGetReflection}
+            >
+              {isLoadingReflection
+                ? "Reflecting…"
+                : "Get an AI reflection on this"}
+            </Button>
+
+            {reflectionCrisisNotice && (
+              <div className="mt-2 rounded-sm border border-danger/40 bg-danger/10 p-md text-sm text-text-primary">
+                <p>{reflectionCrisisNotice.message}</p>
+                <p className="mt-2 font-medium">
+                  {reflectionCrisisNotice.resourceLabel}
+                </p>
+                <p className="text-text-secondary">
+                  {reflectionCrisisNotice.resourceContact}
+                </p>
+              </div>
+            )}
+
+            {reflectionError && (
+              <p className="mt-2 text-sm text-danger">{reflectionError}</p>
+            )}
+
+            {reflection && !reflectionCrisisNotice && (
+              <p className="mt-2 text-sm italic text-text-secondary">
+                &ldquo;{reflection}&rdquo;
+              </p>
+            )}
           </div>
         </Card>
       </div>
