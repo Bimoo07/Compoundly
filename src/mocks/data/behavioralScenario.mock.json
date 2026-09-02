@@ -1,0 +1,22 @@
+{
+  "scenarios": [
+    {
+      "id": "avoidance",
+      "sliderRange": [0, 33],
+      "label": "Avoidance",
+      "narrative": "At this pace, the small moments of friction keep getting postponed. Reaching your long-term vision will take longer, since the daily micro-choices aren't yet pointed in that direction."
+    },
+    {
+      "id": "drifting",
+      "sliderRange": [34, 66],
+      "label": "Drifting",
+      "narrative": "You're inconsistent but not stuck — some days line up with your vision, others don't. A small, repeatable anchor habit would tip this balance toward steady progress."
+    },
+    {
+      "id": "steady-path",
+      "sliderRange": [67, 100],
+      "label": "The Steady Path",
+      "narrative": "You build resilience through gradual, intentional friction. By facing discomfort early in the day, you set the foundation for mastering a skill and moving toward your long-term goals. Your baseline focus increases noticeably."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "habitSuggestions": {
+    "habits": [
+      { "id": "morning-sunlight", "label": "Morning Sunlight" },
+      { "id": "phone-free-breakfast", "label": "Phone-Free Breakfast" },
+      { "id": "10-min-reflection", "label": "10-Min Reflection" }
+    ]
+  },
+  "growthInsights": {
+    "consistency": { "label": "Consistency", "description": "Flowing steady" },
+    "emotionalRegulation": { "label": "Emotional Regulation", "description": "Finding balance" },
+    "selfControl": { "label": "Self-Control", "description": "Strengthening core" },
+    "facingChallenges": { "label": "Facing Challenges", "description": "Confronting problems" }
+  },
+  "recoveryMessage": {
+    "headline": "The Burl Effect",
+    "body": "Setbacks are burls — knots of strength where you've grown back stronger. Your recovery rate is highly positive: you returned to your intention 2 days faster than last month.",
+    "recoveryRateDays": 2,
+    "comparisonPeriod": "last month"
+  }
+}

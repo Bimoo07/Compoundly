@@ -1,0 +1,19 @@
+{
+  "habitOptions": [
+    {
+      "id": "morning-sunlight",
+      "label": "Morning Sunlight",
+      "description": "Step outside for 5 minutes of natural light before checking your phone."
+    },
+    {
+      "id": "phone-free-breakfast",
+      "label": "Phone-Free Breakfast",
+      "description": "Eat your first meal of the day without any screen in view."
+    },
+    {
+      "id": "10-min-reflection",
+      "label": "10-Min Reflection",
+      "description": "Spend ten quiet minutes journaling or simply sitting with your thoughts."
+    }
+  ]
+}

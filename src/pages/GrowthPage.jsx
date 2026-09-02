@@ -1,0 +1,124 @@
+import { useState, useMemo } from 'react';
+import { Droplet, PersonStanding, Shield, Mountain, TrendingUp } from 'lucide-react';
+import Card from '../components/Card';
+import Button from '../components/Button';
+import InsightCard from '../components/InsightCard';
+import PhaseIconBadge from '../components/PhaseIconBadge';
+import { useAppStore } from '../store/useAppStore';
+import { computeGrowthInsights } from '../lib/psychology';
+
+const METRIC_META = {
+  consistency: { label: 'Consistency', icon: Droplet, accent: 'teal' },
+  emotionalRegulation: { label: 'Emotional Regulation', icon: PersonStanding, accent: 'green' },
+  selfControl: { label: 'Self-Control', icon: Shield, accent: 'purple' },
+  facingChallenges: { label: 'Facing Challenges', icon: Mountain, accent: 'muted' },
+};
+
+const LEVEL_DESCRIPTIONS = {
+  building: 'Just getting started',
+  steady: 'Finding balance',
+  flowing: 'Flowing steady',
+};
+
+export default function GrowthPage() {
+  const journalEntries = useAppStore((s) => s.journalEntries);
+  const addJournalEntry = useAppStore((s) => s.addJournalEntry);
+
+  const [text, setText] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
+
+  const insights = useMemo(() => computeGrowthInsights(journalEntries), [journalEntries]);
+
+  function handleSave() {
+    const tags = tagsInput
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    addJournalEntry({ text, tags });
+    setText('');
+    setTagsInput('');
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-md">
+        <PhaseIconBadge icon={TrendingUp} active layoutId="phase-icon-growth" size={56} />
+        <h1 className="text-3xl font-bold text-text-primary">Phase 3: Growth</h1>
+      </div>
+      <p className="mt-2 max-w-2xl text-text-secondary">
+        Reflect on your progress. Every small victory is a step towards rewiring your habits.
+      </p>
+
+      <div className="mt-3xl grid grid-cols-1 gap-lg lg:grid-cols-[2fr_1fr]">
+        <div className="flex flex-col gap-lg">
+          <Card className="flex flex-col gap-md">
+            <h3 className="text-heading text-text-primary">Journal of Evidence</h3>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Record a moment of growth today… What did you overcome? How did you feel?"
+              rows={4}
+              className="w-full resize-none rounded-sm border border-subtle bg-navy-950/60 p-md text-sm text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            />
+            <input
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="#Mindfulness #UrgeSurfing"
+              className="w-full rounded-sm border border-subtle bg-navy-950/60 px-md py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            />
+            <div className="flex justify-end">
+              <Button variant="primary" onClick={handleSave} disabled={!text.trim()}>
+                Save Entry
+              </Button>
+            </div>
+          </Card>
+
+          <div>
+            <h3 className="mb-md text-heading text-text-primary">Recent Evidence</h3>
+            <div className="flex flex-col gap-sm">
+              {journalEntries.length === 0 && (
+                <p className="text-sm text-text-secondary">No entries yet — your first one starts the pattern.</p>
+              )}
+              {journalEntries.slice(0, 5).map((entry) => (
+                <Card key={entry.id} padding="md">
+                  <p className="text-xs text-text-secondary">
+                    {new Date(entry.createdAt).toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-sm text-text-primary">{entry.text}</p>
+                  {entry.tags.length > 0 && (
+                    <div className="mt-2 flex gap-2">
+                      {entry.tags.map((tag) => (
+                        <span key={tag} className="text-xs text-accent-primary">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <Card className="flex flex-col gap-md">
+          <h3 className="text-heading text-text-primary">Insights Summary</h3>
+          {!insights.hasEnoughData && (
+            <p className="text-xs text-text-secondary">
+              Log a few more entries to see your patterns emerge.
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-md">
+            {Object.entries(METRIC_META).map(([key, meta]) => (
+              <InsightCard
+                key={key}
+                icon={meta.icon}
+                label={meta.label}
+                description={LEVEL_DESCRIPTIONS[insights[key].level]}
+                accent={meta.accent}
+                score={insights[key].score}
+              />
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
