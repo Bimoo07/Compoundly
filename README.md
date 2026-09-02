@@ -10,7 +10,7 @@ and qualitative **Behavioral Evidence** instead of streaks or punitive resets.
 - **Tailwind CSS v3** — styling, driven by design tokens in `tailwind.config.js`
 - **Zustand** (with `persist` middleware) — state management, LocalStorage-backed
 - **Motion** (`motion/react`) — general UI transitions and micro-interactions
-- **Anime.js v4** — scoped *only* to the Burl Effect visualization
+- **Anime.js v4** — scoped _only_ to the Burl Effect visualization
 - **Google Gemini API** (`@google/genai`) — client-side, NLP-only roles
 - **Lucide React** — icons
 
@@ -39,12 +39,12 @@ See `.env.example`. In short:
 
 ## Available scripts
 
-| Command | Does |
-|---|---|
-| `npm run dev` | Start the Vite dev server |
-| `npm run build` | Production build to `dist/` |
+| Command           | Does                                 |
+| ----------------- | ------------------------------------ |
+| `npm run dev`     | Start the Vite dev server            |
+| `npm run build`   | Production build to `dist/`          |
 | `npm run preview` | Preview the production build locally |
-| `npm run lint` | Run `oxlint` |
+| `npm run lint`    | Run `oxlint`                         |
 
 ## Architecture principles
 
@@ -66,7 +66,7 @@ each is enforced:
    entries — see `selectRecentJournalEntries` in `growthSlice.js`) should
    ever be sent to the Gemini API, never the full history.
 5. **User autonomy over AI suggestion.** The AI (mock or real) only ever
-   *suggests* — habit selection, what counts as a setback, etc. are always
+   _suggests_ — habit selection, what counts as a setback, etc. are always
    explicit user actions, never automated.
 
 ## Folder structure
