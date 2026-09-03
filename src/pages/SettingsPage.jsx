@@ -25,14 +25,19 @@ function Row({ label, description, children }) {
 }
 
 export default function SettingsPage() {
+  // NOTE (Sprint 5 decision): an "Account" section (email/login, change
+  // password, delete account) was in the original design but is
+  // deliberately NOT built — Compoundly has no auth/backend, so there's
+  // nothing for it to manage. Revisit only if auth is ever added.
   const futureSelfNarrative = useAppStore((s) => s.futureSelfNarrative);
   const activeHabit = useAppStore((s) => s.activeHabit);
   const notifications = useAppStore((s) => s.notifications);
   const updateNotificationSetting = useAppStore(
     (s) => s.updateNotificationSetting,
   );
+  // Still read from the store (defaults to 'en') so getCrisisResponse below
+  // keeps working — only the user-facing picker was removed in Sprint 5.
   const language = useAppStore((s) => s.language);
-  const setLanguage = useAppStore((s) => s.setLanguage);
   const journalEntries = useAppStore((s) => s.journalEntries);
   const resetExperiment = useAppStore((s) => s.resetExperiment);
   const experimentStartDate = useAppStore((s) => s.experimentStartDate);
@@ -71,7 +76,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="text-3xl font-bold text-text-primary">Settings</h1>
       <p className="mt-1 text-text-secondary">
-        Manage your journey, preferences, and account details.
+        Manage your journey and preferences.
       </p>
 
       <div className="mt-3xl flex flex-col gap-lg">
@@ -252,6 +257,13 @@ export default function SettingsPage() {
             </button>
             {openSection === "crisis" && (
               <div className="pb-3 text-text-secondary">
+                <p className="mb-2 rounded-sm border border-white/10 bg-white/5 p-2 text-xs italic">
+                  This is an early version of Compoundly — the resources below
+                  are not yet a complete or verified directory of support
+                  options. Please also search for services specific to your
+                  location, or contact local emergency services if you're in
+                  immediate danger.
+                </p>
                 <p>{crisisResource.message}</p>
                 <p className="mt-2 font-medium text-text-primary">
                   {crisisResource.resourceLabel}
@@ -263,23 +275,9 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <SectionHeading>Language</SectionHeading>
-          <Row label="Language Preference">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="rounded-sm border border-subtle bg-navy-950/60 px-3 py-1 text-sm text-text-primary"
-            >
-              <option value="en">English</option>
-              <option value="id">Bahasa Indonesia</option>
-            </select>
-          </Row>
-        </Card>
-
-        <Card>
           <SectionHeading>About & Feedback</SectionHeading>
           <p className="mt-1 text-sm text-text-secondary">
-            Version v0.1.0 (Sprint 1)
+            Version v0.5.0 (Sprint 5)
           </p>
         </Card>
       </div>
