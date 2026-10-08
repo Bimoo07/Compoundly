@@ -5,21 +5,44 @@
 // evidence is always the raw truth" principle from the project doc.
 
 export const createGrowthSlice = (set) => ({
-  journalEntries: [], // { id, text, tags: string[], createdAt }
+  // { id, text, tags: string[], createdAt, habitId: string|null,
+  //   aiFeedback: { text, source: 'ai'|'fallback'|'mock', createdAt } | null }
+  journalEntries: [],
 
-  addJournalEntry: ({ text, tags = [] }) =>
+  // Returns the new entry id so the caller can attach AI feedback to it.
+  addJournalEntry: ({ text, tags = [] }) => {
+    const id = crypto.randomUUID();
     set((state) => ({
       journalEntries: [
         {
-          id: crypto.randomUUID(),
+          id,
           text,
           tags,
+          habitId: state.activeHabit?.id ?? null,
+          aiFeedback: null,
           createdAt: new Date().toISOString(),
         },
         ...state.journalEntries,
       ],
+    }));
+    return id;
+  },
+
+  setJournalFeedback: (id, aiFeedback) =>
+    set((state) => ({
+      journalEntries: state.journalEntries.map((e) =>
+        e.id === id ? { ...e, aiFeedback } : e,
+      ),
     })),
 });
+
+/**
+ * Pure helper: entries (or burls) belonging to one habit. Use via useMemo in
+ * components, never as a Zustand selector (same new-array-reference trap as
+ * selectRecentJournalEntries below).
+ */
+export const forHabit = (items, habitId) =>
+  items.filter((item) => (item.habitId ?? null) === (habitId ?? null));
 
 /**
  * Selector: last N days of journal entries. Use this (never the raw array)

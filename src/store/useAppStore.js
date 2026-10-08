@@ -8,6 +8,7 @@ import { createActionSlice } from "./slices/actionSlice";
 import { createGrowthSlice } from "./slices/growthSlice";
 import { createRecoverySlice } from "./slices/recoverySlice";
 import { createSettingsSlice } from "./slices/settingsSlice";
+import { createResetSlice } from "./slices/resetSlice";
 
 /**
  * Single combined store, built from per-phase slices (see src/store/slices/).
@@ -24,11 +25,12 @@ export const useAppStore = create(
       ...createGrowthSlice(...a),
       ...createRecoverySlice(...a),
       ...createSettingsSlice(...a),
+      ...createResetSlice(...a),
     }),
     {
       name: "compoundly-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       // v1 -> v2: awarenessSlice replaced `activeHabitId` (a bare string)
       // with `activeHabit` (the full { id, label, source } object), so
       // AI-generated habits that don't exist in habitOptions.mock.json can
@@ -37,16 +39,26 @@ export const useAppStore = create(
       // v1 LocalStorage state loses their active habit selection once and
       // has to re-pick — a one-time inconvenience acceptable during active
       // dev with no real users yet.
+      // v2 -> v3: journal entries and burl events now carry `habitId` (so
+      // progress can be scoped per habit) and `aiFeedback`. Legacy items are
+      // attributed to the habit that is active at migration time.
       migrate: (persistedState, version) => {
-        if (
-          version < 2 &&
-          persistedState &&
-          "activeHabitId" in persistedState
-        ) {
-          const { activeHabitId: _oldActiveHabitId, ...rest } = persistedState;
-          return { ...rest, activeHabit: null };
+        let state = persistedState;
+        if (version < 2 && state && "activeHabitId" in state) {
+          const { activeHabitId: _oldActiveHabitId, ...rest } = state;
+          state = { ...rest, activeHabit: null };
         }
-        return persistedState;
+        if (version < 3 && state) {
+          const habitId = state.activeHabit?.id ?? null;
+          const tag = (items = []) =>
+            items.map((i) => ({ habitId, aiFeedback: null, ...i }));
+          state = {
+            ...state,
+            journalEntries: tag(state.journalEntries),
+            burlEvents: tag(state.burlEvents),
+          };
+        }
+        return state;
       },
       // currentView is intentionally excluded from persistence — on reload,
       // navigation should re-derive from hasAcceptedDisclaimer/activeHabitId

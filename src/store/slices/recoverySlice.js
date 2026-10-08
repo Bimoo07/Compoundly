@@ -2,14 +2,27 @@
 // lib/psychology/recovery.js from burlEvents + the action-phase check-in
 // history. This slice only holds the raw, user-authored log entries.
 
-export const createRecoverySlice = (set) => ({
-  burlEvents: [], // { id, note, createdAt }
+export const createRecoverySlice = (set, get) => ({
+  // { id, note, createdAt, habitId: string|null, aiFeedback: {...}|null }
+  burlEvents: [],
 
-  logSetback: ({ note }) =>
+  // Returns the new burl so the caller can feed it to the AI layer.
+  logSetback: ({ note }) => {
+    const burl = {
+      id: crypto.randomUUID(),
+      note,
+      habitId: get().activeHabit?.id ?? null,
+      aiFeedback: null,
+      createdAt: new Date().toISOString(),
+    };
+    set((state) => ({ burlEvents: [burl, ...state.burlEvents] }));
+    return burl;
+  },
+
+  setBurlFeedback: (id, aiFeedback) =>
     set((state) => ({
-      burlEvents: [
-        { id: crypto.randomUUID(), note, createdAt: new Date().toISOString() },
-        ...state.burlEvents,
-      ],
+      burlEvents: state.burlEvents.map((b) =>
+        b.id === id ? { ...b, aiFeedback } : b,
+      ),
     })),
 });

@@ -12,9 +12,12 @@ import Button from "../components/Button";
 import InsightCard from "../components/InsightCard";
 import PhaseIconBadge from "../components/PhaseIconBadge";
 import { useAppStore } from "../store/useAppStore";
-import { selectRecentJournalEntries } from "../store/slices/growthSlice";
+import {
+  selectRecentJournalEntries,
+  forHabit,
+} from "../store/slices/growthSlice";
 import { computeGrowthInsights } from "../lib/psychology";
-import { generateGrowthReflection } from "../lib/ai";
+import { generateGrowthReflection, generateJournalFeedback } from "../lib/ai";
 
 const METRIC_META = {
   consistency: { label: "Consistency", icon: Droplet, accent: "teal" },
@@ -38,8 +41,17 @@ const LEVEL_DESCRIPTIONS = {
 };
 
 export default function GrowthPage() {
-  const journalEntries = useAppStore((s) => s.journalEntries);
+  const allEntries = useAppStore((s) => s.journalEntries);
+  const activeHabit = useAppStore((s) => s.activeHabit);
+  const language = useAppStore((s) => s.language);
   const addJournalEntry = useAppStore((s) => s.addJournalEntry);
+  const setJournalFeedback = useAppStore((s) => s.setJournalFeedback);
+  // Everything on this page is scoped to the ACTIVE habit — a new habit
+  // starts with a clean evidence log and clean insight scores.
+  const journalEntries = useMemo(
+    () => forHabit(allEntries, activeHabit?.id),
+    [allEntries, activeHabit],
+  );
   const recentEntries = useMemo(
     () => selectRecentJournalEntries({ journalEntries }),
     [journalEntries],
@@ -52,20 +64,66 @@ export default function GrowthPage() {
   const [isLoadingReflection, setIsLoadingReflection] = useState(false);
   const [reflectionError, setReflectionError] = useState(null);
   const [reflectionCrisisNotice, setReflectionCrisisNotice] = useState(null);
+  const [pendingEntryId, setPendingEntryId] = useState(null);
+  const [entryCrisisNotice, setEntryCrisisNotice] = useState(null);
 
   const insights = useMemo(
     () => computeGrowthInsights(journalEntries),
     [journalEntries],
   );
 
-  function handleSave() {
+  // Compact, deterministic summary sent to the AI as FACTS. Levels only —
+  // the model narrates them, it never recomputes them.
+  function buildFacts(entries) {
+    const ins = computeGrowthInsights(entries);
+    return {
+      entriesLast7Days: selectRecentJournalEntries({ journalEntries: entries })
+        .length,
+      consistency: ins.consistency.level,
+      emotionalRegulation: ins.emotionalRegulation.level,
+      selfControl: ins.selfControl.level,
+      facingChallenges: ins.facingChallenges.level,
+    };
+  }
+
+  async function handleSave() {
     const tags = tagsInput
       .split(/[\s,]+/)
       .map((t) => t.trim())
       .filter(Boolean);
-    addJournalEntry({ text, tags });
+    const entryText = text;
+    const previous = recentEntries.slice(0, 3); // newest first, max 3
+    const id = addJournalEntry({ text: entryText, tags });
     setText("");
     setTagsInput("");
+    setEntryCrisisNotice(null);
+    setPendingEntryId(id);
+
+    try {
+      const withNew = [
+        { id, text: entryText, tags, createdAt: new Date().toISOString() },
+        ...journalEntries,
+      ];
+      const result = await generateJournalFeedback({
+        habit: activeHabit,
+        language,
+        text: entryText,
+        tags,
+        recentEntries: previous.map((e) => ({ text: e.text, tags: e.tags })),
+        facts: buildFacts(withNew),
+      });
+      if (result.crisisDetected) {
+        setEntryCrisisNotice(result); // entry itself stays saved locally
+      } else if (result.reflection) {
+        setJournalFeedback(id, {
+          text: result.reflection,
+          source: result.source,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } finally {
+      setPendingEntryId(null);
+    }
   }
 
   async function handleGetReflection() {
@@ -83,7 +141,12 @@ export default function GrowthPage() {
     try {
       // Only the last 7 days ever leave the device — see
       // selectRecentJournalEntries in growthSlice.js.
-      const result = await generateGrowthReflection(entriesText);
+      const result = await generateGrowthReflection({
+        habit: activeHabit,
+        language,
+        entriesText,
+        facts: buildFacts(journalEntries),
+      });
       if (result.crisisDetected) {
         setReflectionCrisisNotice(result);
         return;
@@ -136,6 +199,17 @@ export default function GrowthPage() {
               placeholder="#Mindfulness #UrgeSurfing"
               className="w-full rounded-sm border border-subtle bg-navy-950/60 px-md py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-accent-primary"
             />
+            {entryCrisisNotice && (
+              <div className="rounded-sm border border-danger/40 bg-danger/10 p-md text-sm text-text-primary">
+                <p>{entryCrisisNotice.message}</p>
+                <p className="mt-2 font-medium">
+                  {entryCrisisNotice.resourceLabel}
+                </p>
+                <p className="text-text-secondary">
+                  {entryCrisisNotice.resourceContact}
+                </p>
+              </div>
+            )}
             <div className="flex justify-end">
               <Button
                 variant="primary"
@@ -163,6 +237,16 @@ export default function GrowthPage() {
                     {new Date(entry.createdAt).toLocaleString()}
                   </p>
                   <p className="mt-1 text-sm text-text-primary">{entry.text}</p>
+                  {pendingEntryId === entry.id && (
+                    <p className="mt-2 text-xs text-text-secondary">
+                      Reflecting…
+                    </p>
+                  )}
+                  {entry.aiFeedback?.text && (
+                    <p className="mt-2 border-l-2 border-accent-primary/40 pl-sm text-sm italic text-text-secondary">
+                      {entry.aiFeedback.text}
+                    </p>
+                  )}
                   {entry.tags.length > 0 && (
                     <div className="mt-2 flex gap-2">
                       {entry.tags.map((tag) => (

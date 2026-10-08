@@ -40,6 +40,7 @@ export default function SettingsPage() {
   const language = useAppStore((s) => s.language);
   const journalEntries = useAppStore((s) => s.journalEntries);
   const resetExperiment = useAppStore((s) => s.resetExperiment);
+  const resetProgress = useAppStore((s) => s.resetProgress);
   const experimentStartDate = useAppStore((s) => s.experimentStartDate);
 
   // activeHabit already carries its own label (whether curated or
@@ -47,6 +48,7 @@ export default function SettingsPage() {
   const activeHabitLabel = activeHabit?.label ?? "None selected yet";
 
   const [deleteArmed, setDeleteArmed] = useState(false);
+  const [resetArmed, setResetArmed] = useState(false);
   const [openSection, setOpenSection] = useState(null); // 'disclaimer' | 'crisis' | null
 
   const crisisResource = getCrisisResponse(language);
@@ -58,6 +60,15 @@ export default function SettingsPage() {
     }
     localStorage.removeItem("compoundly-storage");
     window.location.reload();
+  }
+
+  function handleResetProgress() {
+    if (!resetArmed) {
+      setResetArmed(true);
+      return;
+    }
+    resetProgress();
+    setResetArmed(false);
   }
 
   function handleExportJournal() {
@@ -177,6 +188,18 @@ export default function SettingsPage() {
             >
               Export Journal
             </Button>
+            <Button variant="secondary" onClick={handleResetProgress}>
+              {resetArmed ? "Tap again to reset progress" : "Reset Progress"}
+            </Button>
+            {resetArmed && (
+              <button
+                type="button"
+                onClick={() => setResetArmed(false)}
+                className="text-xs text-text-secondary hover:underline"
+              >
+                Cancel
+              </button>
+            )}
             <Button
               variant="destructive"
               icon={Trash2}

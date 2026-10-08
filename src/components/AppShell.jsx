@@ -35,14 +35,27 @@ export default function AppShell({ children }) {
         sidebar/header layout below it. Sized generously since it's no
         longer squeezed next to the "Compoundly" wordmark.
       */}
-      <img
-        src={logoDp}
-        alt="BINUS University Faculty of Humanities — Digital Psychology"
-        className="fixed right-3 top-3 z-30 h-10 w-auto md:right-4 md:top-4 md:h-14"
-      />
+      <div className="fixed right-3 top-3 z-30 flex items-center gap-3 md:right-4 md:top-4">
+        <div className="hidden text-right leading-tight md:block">
+          <p className="text-xs font-semibold text-text-primary">
+            BINUS University
+          </p>
+          <p className="text-[10px] text-text-secondary">
+            Faculty of Humanities · Digital Psychology
+          </p>
+        </div>
+        <img
+          src={logoDp}
+          alt="BINUS University Faculty of Humanities — Digital Psychology"
+          className="h-10 w-auto md:h-14"
+        />
+      </div>
 
       {/* --- Desktop sidebar (md and up) --- */}
-      <nav className="hidden w-60 flex-shrink-0 flex-col gap-1 border-r border-subtle p-md md:flex">
+      {/* sticky + h-screen: the nav is exactly one viewport tall and stays put
+          while the page scrolls, so Settings (pinned to its bottom by the
+          flex-1 spacer) is visible on EVERY page, not only short ones. */}
+      <nav className="hidden w-60 flex-shrink-0 flex-col gap-1 self-start border-r border-subtle p-md md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
         <div className="mb-lg px-md py-2 text-lg font-bold text-accent-primary">
           Compoundly
         </div>
@@ -50,7 +63,7 @@ export default function AppShell({ children }) {
         <SidebarNavItem
           icon={PenLine}
           label="Daily Reflection"
-          active
+          active={false}
           onClick={() => setView("growth")}
         />
 
@@ -79,7 +92,7 @@ export default function AppShell({ children }) {
       {/* --- Mobile top bar (below md) --- */}
       {/* pr-16 reserves clear space on the right for the fixed logo below,
           so it never overlaps the Settings/Daily Reflection buttons. */}
-      <header className="flex items-center justify-between border-b border-subtle p-md pr-16 md:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-subtle bg-navy-950 p-md pr-16 md:hidden">
         <span className="text-lg font-bold text-accent-primary">
           Compoundly
         </span>
