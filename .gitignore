@@ -27,3 +27,9 @@ yarn-error.log*
 
 # Misc
 *.local
+# Local Netlify folder
+.netlify
+
+# Patch and archive files
+*.patch
+*.zip
