@@ -18,14 +18,19 @@ function getCompletedCheckInDates(checkIns) {
  * haven't recovered yet (no check-in after this burl).
  */
 function daysToRecoverFrom(burlCreatedAt, completedDates) {
-  const burlTime = dateOf(burlCreatedAt).getTime();
-  const nextCheckIn = completedDates
-    .map((d) => dateOf(d).getTime())
-    .filter((t) => t > burlTime)
-    .sort((a, b) => a - b)[0];
+  // Compare whole UTC calendar days, like the check-in keys ('YYYY-MM-DD',
+  // built with toISOString().slice(0, 10)). Comparing a full timestamp with a
+  // date-only key made the result depend on the time of day the burl was
+  // logged (Math.round of a fractional day count).
+  const utcDay = (iso) => Math.floor(dateOf(iso).getTime() / DAY_MS);
+  const burlDay = utcDay(burlCreatedAt);
+  const nextCheckInDay = completedDates
+    .map(utcDay)
+    .filter((d) => d > burlDay)
+    .sort((x, y) => x - y)[0];
 
-  if (nextCheckIn === undefined) return null;
-  return Math.round((nextCheckIn - burlTime) / DAY_MS);
+  if (nextCheckInDay === undefined) return null;
+  return nextCheckInDay - burlDay;
 }
 
 /**

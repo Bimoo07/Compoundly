@@ -50,3 +50,33 @@ describe("getCrisisResponse", () => {
     expect(response.resourceLabel).toMatch(/find a helpline/i);
   });
 });
+
+describe("guardrail v2", () => {
+  it("mengembalikan locale dan rule (bukan teks pengguna) saat ditandai", () => {
+    const r = checkForCrisisSignal("kadang aku ingin bunuh diri");
+    expect(r).toEqual({ flagged: true, locale: "id", rule: "bunuh diri" });
+    expect(checkForCrisisSignal("I want to kill myself").locale).toBe("en");
+  });
+
+  it("tahan terhadap leetspeak, huruf berulang, dan aksen", () => {
+    expect(checkForCrisisSignal("aku pengen m4t1").flagged).toBe(true);
+    expect(checkForCrisisSignal("I wanna diiiie").flagged).toBe(true);
+    expect(checkForCrisisSignal("aku ingin bunuh dirí").flagged).toBe(true);
+  });
+
+  it("tidak menandai idiom jinak dan kelelahan umum", () => {
+    for (const t of [
+      "Cut myself some slack today",
+      "hp ku udah mau mati",
+      "Hari ini mati lampu",
+      "capek banget hari ini",
+      "I'm dying laughing",
+    ]) {
+      expect(checkForCrisisSignal(t).flagged, t).toBe(false);
+    }
+  });
+
+  it("sengaja over-flag kalimat bernegasi (kebijakan konservatif)", () => {
+    expect(checkForCrisisSignal("aku tidak ingin bunuh diri").flagged).toBe(true);
+  });
+});

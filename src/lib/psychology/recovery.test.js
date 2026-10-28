@@ -61,3 +61,18 @@ describe("computeRecoveryRate", () => {
     expect(result.message).toMatch(/that's alright/i);
   });
 });
+
+describe("computeRecoveryRate — independent of time of day", () => {
+  it.each(["2026-10-08T00:30:00Z", "2026-10-08T14:26:00Z", "2026-10-08T23:59:00Z"])(
+    "counts whole calendar days when 'now' is %s",
+    async (now) => {
+      const { vi } = await import("vitest");
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(now));
+      const burlEvents = [{ id: "b1", note: "x", createdAt: day(-10) }];
+      const result = computeRecoveryRate(burlEvents, { [dayOnly(-7)]: true });
+      vi.useRealTimers();
+      expect(result.latestRecoveryDays).toBe(3);
+    },
+  );
+});

@@ -44,3 +44,20 @@ describe("narrative guard pipeline (mock client)", () => {
     expect(res.reflection).toMatch(/2 days/);
   });
 });
+
+describe("guardrail: tags dan locale", () => {
+  const habit = { id: "h1", label: "Morning Sunlight" };
+  it("memeriksa tag jurnal, dan memakai bahasa teks bila UI bukan id", async () => {
+    const res = await generateJournalFeedback({
+      habit, language: "en", text: "fine", tags: ["aku ingin bunuh diri"], recentEntries: [], facts: {},
+    });
+    expect(res.crisisDetected).toBe(true);
+    expect(res.resourceLabel).toMatch(/healing119/i);
+  });
+  it("memberi sumber bahasa Inggris untuk teks Inggris", async () => {
+    const res = await generateBurlFeedback({
+      habit, language: "en", note: "I want to kill myself", recentEntries: [], facts: {},
+    });
+    expect(res.resourceLabel).toMatch(/find a helpline/i);
+  });
+});

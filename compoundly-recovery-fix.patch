@@ -1,0 +1,54 @@
+diff --git a/src/lib/psychology/recovery.js b/src/lib/psychology/recovery.js
+index dee38a7..3ee3a2d 100644
+--- a/src/lib/psychology/recovery.js
++++ b/src/lib/psychology/recovery.js
+@@ -18,14 +18,19 @@ function getCompletedCheckInDates(checkIns) {
+  * haven't recovered yet (no check-in after this burl).
+  */
+ function daysToRecoverFrom(burlCreatedAt, completedDates) {
+-  const burlTime = dateOf(burlCreatedAt).getTime();
+-  const nextCheckIn = completedDates
+-    .map((d) => dateOf(d).getTime())
+-    .filter((t) => t > burlTime)
+-    .sort((a, b) => a - b)[0];
++  // Compare whole UTC calendar days, like the check-in keys ('YYYY-MM-DD',
++  // built with toISOString().slice(0, 10)). Comparing a full timestamp with a
++  // date-only key made the result depend on the time of day the burl was
++  // logged (Math.round of a fractional day count).
++  const utcDay = (iso) => Math.floor(dateOf(iso).getTime() / DAY_MS);
++  const burlDay = utcDay(burlCreatedAt);
++  const nextCheckInDay = completedDates
++    .map(utcDay)
++    .filter((d) => d > burlDay)
++    .sort((x, y) => x - y)[0];
+ 
+-  if (nextCheckIn === undefined) return null;
+-  return Math.round((nextCheckIn - burlTime) / DAY_MS);
++  if (nextCheckInDay === undefined) return null;
++  return nextCheckInDay - burlDay;
+ }
+ 
+ /**
+diff --git a/src/lib/psychology/recovery.test.js b/src/lib/psychology/recovery.test.js
+index 3255494..6ce4957 100644
+--- a/src/lib/psychology/recovery.test.js
++++ b/src/lib/psychology/recovery.test.js
+@@ -61,3 +61,18 @@ describe("computeRecoveryRate", () => {
+     expect(result.message).toMatch(/that's alright/i);
+   });
+ });
++
++describe("computeRecoveryRate — independent of time of day", () => {
++  it.each(["2026-10-08T00:30:00Z", "2026-10-08T14:26:00Z", "2026-10-08T23:59:00Z"])(
++    "counts whole calendar days when 'now' is %s",
++    async (now) => {
++      const { vi } = await import("vitest");
++      vi.useFakeTimers();
++      vi.setSystemTime(new Date(now));
++      const burlEvents = [{ id: "b1", note: "x", createdAt: day(-10) }];
++      const result = computeRecoveryRate(burlEvents, { [dayOnly(-7)]: true });
++      vi.useRealTimers();
++      expect(result.latestRecoveryDays).toBe(3);
++    },
++  );
++});

@@ -30,12 +30,11 @@ See `.env.example`. In short:
 
 - `VITE_USE_MOCK_AI=true` (default) — uses `src/lib/ai/mockGeminiClient.js`,
   reading from `src/mocks/data/`. No API key needed.
-- To use the real Gemini API: get a key from
-  [Google AI Studio](https://aistudio.google.com/apikey), set
-  `VITE_GEMINI_API_KEY`, and flip `VITE_USE_MOCK_AI=false`.
-  **Restrict the key by HTTP referrer in Google Cloud Console before deploying
-  anywhere public** — this key is bundled into client-side JS and is visible
-  to anyone inspecting network requests.
+- To use the real Gemini API: the browser never holds the key. Calls go to the
+  Netlify Function `/api/gemini` (`netlify/functions/gemini.mjs`). Locally, copy
+  `.env.example` to `.env`, fill `GEMINI_API_KEY` (no `VITE_` prefix), set
+  `VITE_USE_MOCK_AI=false`, and run `npx netlify-cli dev`. In production, set
+  `GEMINI_API_KEY` (secret), `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL` in Netlify.
 
 ## Available scripts
 
@@ -108,8 +107,6 @@ Being upfront about what Sprint 1 does **not** cover yet:
   `lib/ai/guardrails.js` was validated manually during development (ad hoc
   Node scripts, not committed) — there is no `npm test` yet. Adding Vitest
   would be a natural next step.
-- **Real Gemini API path is untested.** `VITE_USE_MOCK_AI=false` has never
-  been run against an actual API key — only the mock path has been exercised.
 - **Settings "Account" section was dropped.** The original design included
   a 9th section (email/login, Change Password, Delete Account), but since
   there's no auth/backend, it didn't map to anything real and was left out.

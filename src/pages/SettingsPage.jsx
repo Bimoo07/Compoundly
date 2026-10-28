@@ -4,7 +4,8 @@ import Card from "../components/Card";
 import Button from "../components/Button";
 import Toggle from "../components/Toggle";
 import { useAppStore } from "../store/useAppStore";
-import { getCrisisResponse } from "../lib/ai/guardrails";
+import { getCrisisResponse, GUARDRAIL_VERSION } from "../lib/ai/guardrails";
+import { APP_VERSION, APP_COMMIT, APP_BUILD_DATE } from "../lib/buildInfo";
 
 function SectionHeading({ children }) {
   return <h3 className="text-heading text-text-primary">{children}</h3>;
@@ -300,7 +301,11 @@ export default function SettingsPage() {
         <Card>
           <SectionHeading>About & Feedback</SectionHeading>
           <p className="mt-1 text-sm text-text-secondary">
-            Version v0.5.0 (Sprint 5)
+            Version v{APP_VERSION} · build {APP_COMMIT}
+            {APP_BUILD_DATE ? ` · ${APP_BUILD_DATE}` : ""}
+          </p>
+          <p className="text-xs text-text-secondary">
+            Crisis guardrail v{GUARDRAIL_VERSION}
           </p>
         </Card>
       </div>

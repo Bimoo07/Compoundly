@@ -12,6 +12,9 @@ const client = useMock
   ? await import("./mockGeminiClient.js")
   : await import("./geminiClient.js");
 
+/** Bahasa UI "id" menang; selain itu ikuti bahasa teks yang terdeteksi. */
+const pickLocale = (check, uiLanguage) => (uiLanguage === "id" ? "id" : check.locale);
+
 /**
  * Wraps any AI function so that user-authored text is checked for crisis
  * signals BEFORE the underlying client (mock or real) is ever called.
@@ -21,10 +24,10 @@ const client = useMock
  */
 function withCrisisGuardrail(aiFn) {
   return async (text, ...rest) => {
-    const { flagged } = checkForCrisisSignal(text);
-    if (flagged) {
+    const check = checkForCrisisSignal(text);
+    if (check.flagged) {
       // Optional 2nd arg { language } — callers pass the store's language.
-      return { crisisDetected: true, ...getCrisisResponse(rest[0]?.language ?? "en") };
+      return { crisisDetected: true, ...getCrisisResponse(pickLocale(check, rest[0]?.language)) };
     }
     return aiFn(text, ...rest);
   };
@@ -47,8 +50,9 @@ function withCrisisGuardrail(aiFn) {
 function withNarrativeGuard({ aiFn, getUserText, getFallback = () => null }) {
   return async (payload) => {
     const userText = getUserText(payload);
-    if (checkForCrisisSignal(userText).flagged) {
-      return { crisisDetected: true, ...getCrisisResponse(payload.language ?? "en") };
+    const check = checkForCrisisSignal(userText);
+    if (check.flagged) {
+      return { crisisDetected: true, ...getCrisisResponse(pickLocale(check, payload.language)) };
     }
     try {
       const res = await aiFn(payload);
@@ -79,7 +83,11 @@ export const generateGrowthReflection = withNarrativeGuard({
 export const generateJournalFeedback = withNarrativeGuard({
   aiFn: client.generateJournalFeedback,
   getUserText: (p) =>
-    [p.text, ...(p.recentEntries ?? []).map((e) => e.text)].join("\n"),
+    [
+      p.text,
+      ...(p.tags ?? []),
+      ...(p.recentEntries ?? []).flatMap((e) => [e.text, ...(e.tags ?? [])]),
+    ].join("\n"),
 });
 
 export const generateBurlFeedback = withNarrativeGuard({

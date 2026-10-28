@@ -1,63 +1,114 @@
-import { GoogleGenAI } from "@google/genai";
 import { parseJsonResponse } from "./parseJsonResponse.js";
 
-// NOTE ON SECURITY: this key is bundled into client-side JS, so it is visible
-// to anyone who inspects network requests or the built bundle. At minimum,
-// restrict this key by HTTP referrer in Google Cloud Console before shipping.
-// See the accompanying explanation for why a thin serverless proxy is a
-// stronger long-term option if Compoundly gets real users.
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+// Klien Gemini versi proxy. Browser TIDAK lagi memegang API key dan tidak
+// memanggil Google langsung: semua panggilan lewat Netlify Function di
+// /api/gemini (lihat netlify/functions/gemini.mjs). Model, thinking level,
+// dan batas token ditentukan di server.
 
-const MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-3.8-flash";
-const TIMEOUT_MS = 15000;
+const ENDPOINT = "/api/gemini";
+const TIMEOUT_MS = 20000; // per percobaan (server memutus upstream di 18 dtk)
+const MAX_ATTEMPTS = 4;
+const DEADLINE_MS = 45000; // batas total semua percobaan
+const MIN_ATTEMPT_MS = 8000; // jangan mulai percobaan baru kalau sisa waktu lebih kecil
 
-function withTimeout(promise, ms, message) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(message)), ms),
-    ),
-  ]);
+const TRANSIENT_STATUS = [429, 500, 502, 503, 504];
+
+class ProxyError extends Error {
+  constructor(message, { status = 0, code = null, retryable = false } = {}) {
+    super(message);
+    this.name = "ProxyError";
+    this.status = status;
+    this.code = code;
+    this.retryable = retryable;
+  }
 }
 
-/**
- * One place for timeout + a single retry with backoff. Every function below
- * goes through this, so failure behaviour is identical and testable.
- */
+async function callOnce(slot, prompt, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt, slot }),
+      signal: controller.signal,
+    });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      // Body bukan JSON (mis. halaman 429/502 dari platform Netlify).
+    }
+    if (!res.ok) {
+      throw new ProxyError(`HTTP ${res.status} ${data?.error ?? ""}`.trim(), {
+        status: res.status,
+        code: data?.error ?? null,
+        retryable: data?.retryable ?? TRANSIENT_STATUS.includes(res.status),
+      });
+    }
+    if (typeof data?.text !== "string") {
+      throw new ProxyError("Respons proxy tidak valid", { status: 502, code: "BAD_PROXY_RESPONSE" });
+    }
+    return data.text;
+  } catch (err) {
+    if (err instanceof ProxyError) throw err;
+    if (err?.name === "AbortError") {
+      throw new ProxyError("timeout", { code: "CLIENT_TIMEOUT", retryable: true });
+    }
+    throw new ProxyError("network", { code: "NETWORK", retryable: true });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function toUserError(err) {
-  const m = String(err?.message ?? err);
-  if (/NOT_FOUND|"code":\s*404/.test(m))
+  const { status, code } = err ?? {};
+  if (code === "MODEL_NOT_FOUND")
+    return new Error("Model AI tidak tersedia. Periksa GEMINI_MODEL di pengaturan Netlify.");
+  if (code === "FORBIDDEN")
+    return new Error("Permintaan ditolak server. Buka aplikasi lewat alamat resminya.");
+  if (code === "SERVER_MISCONFIGURED" || code === "UPSTREAM_REJECTED")
+    return new Error("Layanan AI belum dikonfigurasi dengan benar. Hubungi peneliti.");
+  if (status === 404 && !code)
     return new Error(
-      "Model AI tidak tersedia. Periksa pengaturan VITE_GEMINI_MODEL.",
+      "Endpoint AI tidak ditemukan. Jalankan lewat `netlify dev`, atau aktifkan VITE_USE_MOCK_AI=true.",
     );
-  if (/RESOURCE_EXHAUSTED|"code":\s*429/.test(m))
-    return new Error("Kuota AI sedang habis. Coba lagi beberapa saat.");
-  if (/timed out/i.test(m)) return err;
+  if (status === 429)
+    return new Error("Terlalu banyak permintaan atau kuota habis. Coba lagi beberapa saat.");
+  if (code === "CLIENT_TIMEOUT" || code === "UPSTREAM_TIMEOUT" || status === 504)
+    return new Error("AI terlalu lama merespons. Coba lagi, atau pilih habit dari daftar di bawah.");
+  if (code === "UNAVAILABLE" || status === 503)
+    return new Error("Layanan AI sedang sibuk. Coba lagi sebentar lagi, atau pilih habit dari daftar di bawah.");
   return new Error("Layanan AI sedang bermasalah. Coba lagi.");
 }
 
-async function generate(prompt, retries = 1) {
-  try {
-    const response = await withTimeout(
-      ai.models.generateContent({ model: MODEL, contents: prompt }),
-      TIMEOUT_MS,
-      "Gemini took too long to respond (timed out after 15s).",
-    );
-    return response.text;
-  } catch (err) {
-    const permanent = /NOT_FOUND|"code":\s*4(00|01|03|04)/.test(
-      String(err?.message),
-    );
-    if (retries <= 0 || permanent) throw toUserError(err);
-    await new Promise((r) => setTimeout(r, 800));
-    return generate(prompt, retries - 1);
+/**
+ * Percobaan bergantian antara slot "primary" dan "fallback" (model cadangan
+ * ditentukan server). Hanya error sementara (503/429/timeout/jaringan) yang
+ * diulang, dengan backoff 1s, 2s, 4s dan batas waktu total.
+ */
+async function generate(prompt) {
+  const start = Date.now();
+  let lastErr;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const remaining = DEADLINE_MS - (Date.now() - start);
+    if (attempt > 0 && remaining < MIN_ATTEMPT_MS) break;
+    const slot = attempt % 2 === 0 ? "primary" : "fallback";
+    try {
+      return await callOnce(slot, prompt, Math.min(TIMEOUT_MS, remaining));
+    } catch (err) {
+      lastErr = err;
+      if (!err.retryable) break;
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    }
   }
+  throw toUserError(lastErr);
 }
 
 const clip = (t = "", n = 400) => String(t).slice(0, n);
 
-// Shared safety preamble. User text is wrapped in tags and declared DATA so
-// that instructions hidden inside a journal entry are not followed.
+// Preamble keselamatan bersama. Teks pengguna dibungkus tag dan dinyatakan
+// sebagai DATA agar instruksi yang terselip di jurnal tidak diikuti.
 const NARRATIVE_RULES = `
 Rules:
 - Reply in the same language as the user's entry (Indonesian or English).
@@ -70,16 +121,13 @@ Respond ONLY with JSON: { "reflection": "..." }`.trim();
 
 /**
  * AI 1 — Context Analyzer
- * Turns the user's free-text "future self" narrative into 3-5 suggested
- * critical habits. This is a UX/NLP layer only — it never decides which
- * habit "wins"; the user always picks.
+ * Mengubah narasi "future self" menjadi 3-5 saran habit. Hanya lapisan
+ * UX/NLP: tidak pernah memutuskan habit mana yang dipilih; pengguna yang memilih.
  *
- * IMPORTANT: keep this function's signature identical to
- * mockGeminiClient.js's `suggestHabitsFromNarrative`, so swapping the client
- * never touches any React component.
+ * Signature HARUS identik dengan `suggestHabitsFromNarrative` di
+ * mockGeminiClient.js agar komponen React tidak perlu berubah.
  *
- * @param {string} narrative - the user's future-self story (already trimmed
- *   to the last 7 days of relevant context per the data-minimization rule).
+ * @param {string} narrative
  * @returns {Promise<{ habits: { id: string, label: string }[] }>}
  */
 export async function suggestHabitsFromNarrative(narrative) {
@@ -88,7 +136,7 @@ You are a behavior-change assistant. A user wrote the following description
 of what their life looks like in 6 months:
 
 """
-${narrative}
+${clip(narrative, 2000)}
 """
 
 Suggest 3 to 5 small, concrete, achievable daily habits that would move them
@@ -102,22 +150,13 @@ single day. Respond ONLY with JSON in this exact shape, no other text:
 }
 
 /**
- * AI "Reflective Prompting" — writes ONE short, warm, non-clinical sentence
- * reflecting on the user's recent journal entries.
+ * Refleksi Growth — satu kalimat hangat dan non-klinis atas jurnal terbaru.
  *
- * IMPORTANT ARCHITECTURAL NOTE: this function deliberately does NOT compute
- * any scores, levels, or diagnoses. All of that (Consistency, Emotional
- * Regulation, Self-Control, Facing Challenges, Recovery Rate) is computed
- * by lib/psychology/ from raw data, with zero AI involvement — see
- * GrowthPage.jsx and RecoveryPage.jsx. This function only ever adds a
- * human-sounding reflection ON TOP of numbers that were already determined
- * deterministically. This resolves what were originally called "AI 3:
- * Pattern Identifier" and "AI 4: Reflective Prompting" in the project's
- * early design — their role narrowed to narrative framing only, since
- * lib/psychology/ ended up owning the actual pattern detection.
+ * Fungsi ini TIDAK menghitung skor, level, atau diagnosis. Semua itu dihitung
+ * oleh lib/psychology/ tanpa keterlibatan AI. AI hanya menarasikan angka yang
+ * sudah ditentukan secara deterministik.
  *
  * @param {{ habit, language, entriesText: string, facts: object }} payload
- *   entriesText = last 7 days only, already clipped by the caller.
  * @returns {Promise<{ reflection: string }>}
  */
 export async function generateGrowthReflection({ habit, entriesText, facts }) {
@@ -134,9 +173,8 @@ ${NARRATIVE_RULES}`.trim();
 }
 
 /**
- * Per-entry feedback right after the user saves a journal entry. Reads the
- * entry itself + the habit + a few recent entries, so the answer adapts to
- * what was actually written (not a canned line).
+ * Feedback per entri, tepat setelah pengguna menyimpan jurnal. Membaca entri
+ * itu, habit, dan beberapa entri terbaru agar jawabannya sesuai isi tulisan.
  *
  * @param {{ habit, text: string, tags: string[], recentEntries: {text:string,tags:string[]}[], facts: object }} payload
  * @returns {Promise<{ reflection: string }>}
@@ -166,11 +204,10 @@ ${NARRATIVE_RULES}`.trim();
 }
 
 /**
- * Burl Effect feedback after a setback. The numbers (days to recover, change
- * vs. previous recoveries) come from lib/psychology/recovery.js; the model
- * only narrates them, using the habit, the user's setback note and recent
- * journal context. Setbacks are framed as information, not as evidence about
- * the person (Growth Mindset / self-compassion framing).
+ * Feedback Burl Effect setelah setback. Angka (hari pemulihan, selisih dengan
+ * pemulihan sebelumnya) berasal dari lib/psychology/recovery.js; model hanya
+ * menarasikannya. Setback dibingkai sebagai informasi tentang rencana, bukan
+ * bukti tentang kemampuan orangnya.
  *
  * @param {{ habit, note: string, recentEntries: {text:string}[], facts: object }} payload
  * @returns {Promise<{ reflection: string }>}
